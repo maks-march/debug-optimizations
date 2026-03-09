@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -100,24 +101,36 @@ class HuffmanCodec
 
 	public static byte[] Decode(byte[] encodedData, Dictionary<BitsWithLength, byte> decodeTable, long bitsCount)
 	{
-		var result = new List<byte>();
+		int maxBitsCount = 16; 
+		short[] fastDecodeTable = new short[1 << (maxBitsCount + 1)];
+		Array.Fill(fastDecodeTable, (short)-1);
 
-		byte decodedByte;
-		var sample = new BitsWithLength { Bits = 0, BitsCount = 0 };
+		foreach (var kvp in decodeTable)
+		{
+			int key = (1 << kvp.Key.BitsCount) | kvp.Key.Bits;
+			fastDecodeTable[key] = kvp.Value;
+		}
+		var result = new List<byte>();
+		int currentBits = 0;
+		int currentBitsCount = 0;
+
 		for (var byteNum = 0; byteNum < encodedData.Length; byteNum++)
 		{
 			var b = encodedData[byteNum];
 			for (var bitNum = 0; bitNum < 8 && byteNum * 8 + bitNum < bitsCount; bitNum++)
 			{
-				sample.Bits = (sample.Bits << 1) + ((b & (1 << (8 - bitNum - 1))) != 0 ? 1 : 0);
-				sample.BitsCount++;
+				currentBits = (currentBits << 1) | ((b >> (7 - bitNum)) & 1);
+				currentBitsCount++;
 
-				if (decodeTable.TryGetValue(sample, out decodedByte))
+				int lookupKey = (1 << currentBitsCount) | currentBits;
+
+				short decodedByte = fastDecodeTable[lookupKey];
+        
+				if (decodedByte != -1)
 				{
-					result.Add(decodedByte);
-
-					sample.BitsCount = 0;
-					sample.Bits = 0;
+					result.Add((byte)decodedByte);
+					currentBits = 0;
+					currentBitsCount = 0;
 				}
 			}
 		}
