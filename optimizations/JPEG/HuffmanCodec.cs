@@ -160,26 +160,41 @@ class HuffmanCodec
 	{
 		var nodes = GetNodes(frequences);
 
-		while (nodes.Count() > 1)
+		while (nodes.Count > 1)
 		{
-			var firstMin = nodes.MinOrDefault(node => node.Frequency);
-			nodes = nodes.Without(firstMin);
-			var secondMin = nodes.MinOrDefault(node => node.Frequency);
-			nodes = nodes.Without(secondMin);
-			nodes = nodes.Concat(new HuffmanNode
-					{ Frequency = firstMin.Frequency + secondMin.Frequency, Left = secondMin, Right = firstMin }
-				.ToEnumerable());
+			var firstMin = nodes.FirstOrDefault();
+			var secondMin = nodes.Skip(1).FirstOrDefault();
+			if (nodes.Count != 0)
+				nodes.Remove(firstMin);
+			if (nodes.Count != 0)
+				nodes.Remove(secondMin);
+			var newNode = new HuffmanNode
+			{
+				Frequency = 0,
+				Right = firstMin,
+				Left = secondMin
+			};
+			if (firstMin != null)
+			{
+				newNode.Frequency += firstMin.Frequency;
+			}
+			if (secondMin != null)
+			{
+				newNode.Frequency += secondMin.Frequency;
+			}
+			nodes.Add(newNode);
 		}
 
 		return nodes.First();
 	}
 
-	private static IEnumerable<HuffmanNode> GetNodes(int[] frequences)
+	private static List<HuffmanNode> GetNodes(int[] frequences)
 	{
 		return Enumerable.Range(0, byte.MaxValue + 1)
 			.Select(num => new HuffmanNode { Frequency = frequences[num], LeafLabel = (byte)num })
 			.Where(node => node.Frequency > 0)
-			.ToArray();
+			.OrderBy(node => node.Frequency)
+			.ToList();
 	}
 
 	private static int[] CalcFrequences(IEnumerable<byte> data)
