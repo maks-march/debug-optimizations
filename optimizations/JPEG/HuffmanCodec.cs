@@ -41,40 +41,32 @@ public class BitsWithLength
 
 class BitsBuffer
 {
-	private List<byte> buffer = new List<byte>();
 	private BitsWithLength unfinishedBits = new BitsWithLength();
 
-	public void Add(BitsWithLength bitsWithLength)
+	private readonly List<byte> _buffer = new List<byte>(1500000); 
+	private int _accumulator = 0;
+	private int _bitCount = 0;
+
+	public void Add(int bits, int length)
 	{
-		var bitsCount = bitsWithLength.BitsCount;
-		var bits = bitsWithLength.Bits;
+		_accumulator = (_accumulator << length) | bits;
+		_bitCount += length;
 
-		int neededBits = 8 - unfinishedBits.BitsCount;
-		while (bitsCount >= neededBits)
+		while (_bitCount >= 8)
 		{
-			bitsCount -= neededBits;
-			buffer.Add((byte)((unfinishedBits.Bits << neededBits) + (bits >> bitsCount)));
-
-			bits = bits & ((1 << bitsCount) - 1);
-
-			unfinishedBits.Bits = 0;
-			unfinishedBits.BitsCount = 0;
-
-			neededBits = 8;
+			_bitCount -= 8;
+            
+			_buffer.Add((byte)(_accumulator >> _bitCount));
 		}
-
-		unfinishedBits.BitsCount += bitsCount;
-		unfinishedBits.Bits = (unfinishedBits.Bits << bitsCount) + bits;
 	}
 
 	public byte[] ToArray(out long bitsCount)
 	{
-		bitsCount = buffer.Count * 8L + unfinishedBits.BitsCount;
-		var result = new byte[bitsCount / 8 + (bitsCount % 8 > 0 ? 1 : 0)];
-		buffer.CopyTo(result);
-		if (unfinishedBits.BitsCount > 0)
-			result[buffer.Count] = (byte)(unfinishedBits.Bits << (8 - unfinishedBits.BitsCount));
-		return result;
+		bitsCount = _buffer.Count * 8L + unfinishedBits.BitsCount;
+		_buffer.Add((byte)(_accumulator << 8 - _bitCount));
+		_bitCount = 0;
+		_accumulator = 0;
+		return _buffer.ToArray();
 	}
 }
 
@@ -95,7 +87,7 @@ class HuffmanCodec
 		for (var index = 0; index < dataArr.Length; index++)
 		{
 			var b = dataArr[index];
-			bitsBuffer.Add(encodeTable[b]);
+			bitsBuffer.Add(encodeTable[b].Bits, encodeTable[b].BitsCount);
 		}
 
 		decodeTable = CreateDecodeTable(encodeTable);
