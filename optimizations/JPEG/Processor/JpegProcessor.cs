@@ -88,13 +88,17 @@ public class JpegProcessor : IJpegProcessor
 		{
 			if (image.Quality != CompressionQuality)
 				QuantizationMatrix = GetQuantizationMatrix(image.Quality);
+			
+			var r = new float[DCTSize, DCTSize];
+			var g = new float[DCTSize, DCTSize];
+			var b = new float[DCTSize, DCTSize];
 			for (var y = 0; y < height; y += DCTSize)
 			{
 				for (var x = 0; x < width; x += DCTSize)
 				{
-					var r = new double[DCTSize, DCTSize];
-					var g = new double[DCTSize, DCTSize];
-					var b = new double[DCTSize, DCTSize];
+					Array.Clear(r);
+					Array.Clear(g);
+					Array.Clear(b);
 					foreach (var channel in new[] { r, g, b })
 					{
 						var quantizedBytes = new byte[DCTSize * DCTSize];
@@ -112,13 +116,13 @@ public class JpegProcessor : IJpegProcessor
 		return result;
 	}
 	
-	private static unsafe double[,] GetSubMatrix(
+	private static unsafe byte[,] GetSubMatrix(
 		BitmapData bmpData, 
 		int yOffset, int yLength, 
 		int xOffset, int xLength,
 		int componentOffset) 
 	{
-		var result = new double[yLength, xLength];
+		var result = new byte[yLength, xLength];
     
 		byte* scan0 = (byte*)bmpData.Scan0.ToPointer();
 		int stride = bmpData.Stride;
@@ -141,9 +145,9 @@ public class JpegProcessor : IJpegProcessor
 	
 	private static unsafe void SetPixels(
 		BitmapData bmpData, 
-		double[,] a, 
-		double[,] b, 
-		double[,] c, 
+		float[,] a, 
+		float[,] b, 
+		float[,] c, 
 		int yOffset, 
 		int xOffset)
 	{
@@ -181,7 +185,7 @@ public class JpegProcessor : IJpegProcessor
 		return (byte)val;
 	}
 
-	private byte[] QuantizeAndZigZagScan(double[,] channelFreqs)
+	private byte[] QuantizeAndZigZagScan(float[,] channelFreqs)
 	{
 		var result = new byte[64];
 
@@ -197,9 +201,9 @@ public class JpegProcessor : IJpegProcessor
 		return result;
 	}
 	
-	private double[,] DequantizeAndZigZagUnScan(byte[] quantizedBytes)
+	private int[,] DequantizeAndZigZagUnScan(byte[] quantizedBytes)
 	{
-		var result = new double[8,8];
+		var result = new int[8,8];
 
 		for (int i = 0; i < 64; i++)
 		{
