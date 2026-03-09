@@ -43,7 +43,6 @@ public class JpegProcessor : IJpegProcessor
 				foreach (var selector in new Func<Pixel, double>[] { p => p.Y, p => p.Cb, p => p.Cr })
 				{
 					var subMatrix = GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector);
-					ShiftMatrixValues(subMatrix, -128);
 					var channelFreqs = DCT.DCT2D(subMatrix);
 					var quantizedFreqs = Quantize(channelFreqs, quality);
 					var quantizedBytes = ZigZagScan(quantizedFreqs);
@@ -83,7 +82,6 @@ public class JpegProcessor : IJpegProcessor
 						var quantizedFreqs = ZigZagUnScan(quantizedBytes);
 						var channelFreqs = DeQuantize(quantizedFreqs, image.Quality);
 						DCT.IDCT2D(channelFreqs, channel);
-						ShiftMatrixValues(channel, 128);
 					}
 
 					SetPixels(result, _y, cb, cr, PixelFormat.YCbCr, y, x);
@@ -92,16 +90,6 @@ public class JpegProcessor : IJpegProcessor
 		}
 
 		return result;
-	}
-
-	private static void ShiftMatrixValues(double[,] subMatrix, int shiftValue)
-	{
-		var height = subMatrix.GetLength(0);
-		var width = subMatrix.GetLength(1);
-
-		for (var y = 0; y < height; y++)
-		for (var x = 0; x < width; x++)
-			subMatrix[y, x] = subMatrix[y, x] + shiftValue;
 	}
 
 	private static void SetPixels(Matrix matrix, double[,] a, double[,] b, double[,] c, PixelFormat format,

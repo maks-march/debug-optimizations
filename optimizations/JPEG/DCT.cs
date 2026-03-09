@@ -5,65 +5,72 @@ namespace JPEG;
 
 public class DCT
 {
-	public static double[,] DCT2D(double[,] input)
+	private const int N = 8;
+	private static double _beta = 1d / N + 1d / N;
+	private static readonly double[,] cosX = new double[N, N];
+	private static readonly double[,] cosY = new double[N, N];
+
+	static DCT()
 	{
-		var height = input.GetLength(0);
-		var width = input.GetLength(1);
-		var coeffs = new double[width, height];
+		BuildCosCache(N);
+	}
 
-		MathEx.LoopByTwoVariables(
-			0, width,
-			0, height,
-			(u, v) =>
+	private static void BuildCosCache(int N)
+	{
+		for (int u = 0; u < N; u++)
+		for (int x = 0; x < N; x++)
+			cosX[u, x] = Math.Cos((2d * x + 1d) * u * Math.PI / (2 * N));
+
+		for (int v = 0; v < N; v++)
+		for (int y = 0; y < N; y++)
+			cosY[v, y] = Math.Cos((2d * y + 1d) * v * Math.PI / (2 * N));
+	}
+	
+	public static double[,] DCT2D(double[,] input, short shift = -128)
+	{
+		var coeffs = new double[N, N];
+
+		for (int u = 0; u < N; u++)
+		{
+			for (int v = 0; v < N; v++)
 			{
-				var sum = MathEx
-					.SumByTwoVariables(
-						0, width,
-						0, height,
-						(x, y) => BasisFunction(input[x, y], u, v, x, y, height, width));
-
-				coeffs[u, v] = sum * Beta(height, width) * Alpha(u) * Alpha(v);
-			});
+				double sum = 0.0;
+				for (int x = 0; x < N; x++)
+				{
+					for (int y = 0; y < N; y++)
+					{
+						sum += (input[x, y] + shift) * cosX[u, x] * cosY[v, y];
+					}
+				}
+				byte flagU = (byte)((8 - u) / 8);
+				byte flagV = (byte)((8 - v) / 8);
+				coeffs[u, v] = sum * _beta * (flagU * 1 / Math.Sqrt(2) + 1 - flagU) * (flagV * 1 / Math.Sqrt(2) + 1 - flagV);
+			}
+		}
 
 		return coeffs;
 	}
 
-	public static void IDCT2D(double[,] coeffs, double[,] output)
+	public static void IDCT2D(double[,] coeffs, double[,] output, short shift = 128)
 	{
-		for (var x = 0; x < coeffs.GetLength(1); x++)
+		for (var x = 0; x < N; x++)
 		{
-			for (var y = 0; y < coeffs.GetLength(0); y++)
+			for (var y = 0; y < N; y++)
 			{
-				var sum = MathEx
-					.SumByTwoVariables(
-						0, coeffs.GetLength(1),
-						0, coeffs.GetLength(0),
-						(u, v) =>
-							BasisFunction(coeffs[u, v], u, v, x, y, coeffs.GetLength(0), coeffs.GetLength(1)) *
-							Alpha(u) * Alpha(v));
+				double sum = 0.0;
+				for (int u = 0; u < N; u++)
+				{
+					for (int v = 0; v < N; v++)
+					{
+						byte flagU = (byte)((8 - u) / 8);
+						byte flagV = (byte)((8 - v) / 8);
+						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] *
+						       (flagU * 1 / Math.Sqrt(2) + 1 - flagU) * (flagV * 1 / Math.Sqrt(2) + 1 - flagV);
+					}
+				}
 
-				output[x, y] = sum * Beta(coeffs.GetLength(0), coeffs.GetLength(1));
+				output[x, y] = sum * _beta + shift;
 			}
 		}
-	}
-
-	public static double BasisFunction(double a, double u, double v, double x, double y, int height, int width)
-	{
-		var b = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2 * width));
-		var c = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2 * height));
-
-		return a * b * c;
-	}
-
-	private static double Alpha(int u)
-	{
-		if (u == 0)
-			return 1 / Math.Sqrt(2);
-		return 1;
-	}
-
-	private static double Beta(int height, int width)
-	{
-		return 1d / width + 1d / height;
 	}
 }
