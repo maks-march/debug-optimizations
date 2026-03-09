@@ -55,7 +55,7 @@ public class JpegProcessor : IJpegProcessor
 		{
 			for (var x = 0; x < width; x += DCTSize)
 			{
-				for (int i = 0; i < 3; i++)
+				for (int i = 2; i >= 0; i--)
 				{
 					var subMatrix = GetSubMatrix(bmpData, y, 8, x, 8, i);
 					var channelFreqs = DCT.DCT2D(subMatrix);
@@ -74,11 +74,6 @@ public class JpegProcessor : IJpegProcessor
 			Quality = quality, CompressedBytes = compressedBytes, BitsCount = bitsCount, DecodeTable = decodeTable,
 			Height = bmp.Height, Width = bmp.Width
 		};
-	}
-
-	private void ProccessSubMatrix(double[,] subMatrix, ref List<byte> allQuantizedBytes)
-	{
-
 	}
 
 	private Bitmap Uncompress(CompressedImage image)

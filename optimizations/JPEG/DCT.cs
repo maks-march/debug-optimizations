@@ -29,21 +29,23 @@ public class DCT
 	public static double[,] DCT2D(double[,] input, short shift = -128)
 	{
 		var coeffs = new double[N, N];
-
-		for (int u = 0; u < N; u++)
+		double sum;
+		byte flagU;
+		byte flagV;
+		for (byte u = 0; u < N; u++)
 		{
-			for (int v = 0; v < N; v++)
+			for (byte v = 0; v < N; v++)
 			{
-				double sum = 0.0;
-				for (int x = 0; x < N; x++)
+				sum = 0.0;
+				for (byte x = 0; x < N; x++)
 				{
-					for (int y = 0; y < N; y++)
+					for (byte y = 0; y < N; y++)
 					{
 						sum += (input[x, y] + shift) * cosX[u, x] * cosY[v, y];
 					}
 				}
-				byte flagU = (byte)((8 - u) / 8);
-				byte flagV = (byte)((8 - v) / 8);
+				flagU = (byte)((8 - u) / 8);
+				flagV = (byte)((8 - v) / 8);
 				coeffs[u, v] = sum * _beta * (flagU * 1 / Math.Sqrt(2) + 1 - flagU) * (flagV * 1 / Math.Sqrt(2) + 1 - flagV);
 			}
 		}
@@ -53,17 +55,20 @@ public class DCT
 
 	public static void IDCT2D(double[,] coeffs, double[,] output, short shift = 128)
 	{
+		double sum;
+		byte flagU;
+		byte flagV;
 		for (var x = 0; x < N; x++)
 		{
 			for (var y = 0; y < N; y++)
 			{
-				double sum = 0.0;
+				sum = 0.0;
 				for (int u = 0; u < N; u++)
 				{
 					for (int v = 0; v < N; v++)
 					{
-						byte flagU = (byte)((8 - u) / 8);
-						byte flagV = (byte)((8 - v) / 8);
+						flagU = (byte)((8 - u) / 8);
+						flagV = (byte)((8 - v) / 8);
 						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] *
 						       (flagU * 1 / Math.Sqrt(2) + 1 - flagU) * (flagV * 1 / Math.Sqrt(2) + 1 - flagV);
 					}
