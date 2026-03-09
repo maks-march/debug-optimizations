@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using JPEG.Images;
-using PixelFormat = JPEG.Images.PixelFormat;
+using System.Linq;
 
 namespace JPEG.Processor;
 
@@ -50,20 +49,22 @@ public class JpegProcessor : IJpegProcessor
 
 		var height = bmp.Height - bmp.Height % 8;
 		var width = bmp.Width - bmp.Width % 8;
+		var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+		BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
 		for (var y = 0; y < height; y += DCTSize)
 		{
 			for (var x = 0; x < width; x += DCTSize)
 			{
-				foreach (var selector in new Func<Color, double>[] { p => p.R, p => p.G, p => p.B })
+				for (int i = 0; i < 3; i++)
 				{
-					var subMatrix = GetSubMatrix(bmp, y, DCTSize, x, DCTSize, selector);
+					var subMatrix = GetSubMatrix(bmpData, y, 8, x, 8, i);
 					var channelFreqs = DCT.DCT2D(subMatrix);
-					var quantizedBytes = QuantizeAndZigZagScan(channelFreqs);
-					allQuantizedBytes.AddRange(quantizedBytes);
+					allQuantizedBytes.AddRange(QuantizeAndZigZagScan(channelFreqs));
 				}
 			}
 		}
-
+		bmp.UnlockBits(bmpData);
+		
 		long bitsCount;
 		Dictionary<BitsWithLength, byte> decodeTable;
 		var compressedBytes = HuffmanCodec.Encode(allQuantizedBytes, out decodeTable, out bitsCount);
@@ -75,11 +76,18 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
+	private void ProccessSubMatrix(double[,] subMatrix, ref List<byte> allQuantizedBytes)
+	{
+
+	}
+
 	private Bitmap Uncompress(CompressedImage image)
 	{
 		var height = image.Height - image.Height % 8;
 		var width = image.Width - image.Width % 8;
 		var result = new Bitmap(width, height);
+		var rect = new Rectangle(0, 0, result.Width, result.Height);
+		BitmapData bmpData = result.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
 		using (var allQuantizedBytes =
 		       new MemoryStream(HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount)))
 		{
@@ -101,41 +109,81 @@ public class JpegProcessor : IJpegProcessor
 						DCT.IDCT2D(channelFreqs, channel);
 					}
 
-					SetPixels(result, r, g, b, y, x);
+					SetPixels(bmpData, r, g, b, y, x);
 				}
+			}
+		}
+		result.UnlockBits(bmpData);
+		return result;
+	}
+	
+	private static unsafe double[,] GetSubMatrix(
+		BitmapData bmpData, 
+		int yOffset, int yLength, 
+		int xOffset, int xLength,
+		int componentOffset) 
+	{
+		var result = new double[yLength, xLength];
+    
+		byte* scan0 = (byte*)bmpData.Scan0.ToPointer();
+		int stride = bmpData.Stride;
+		int bytesPerPixel = Image.GetPixelFormatSize(bmpData.PixelFormat) / 8;
+
+		for (var j = 0; j < yLength; j++)
+		{
+			byte* row = scan0 + (yOffset + j) * stride;
+
+			for (var i = 0; i < xLength; i++)
+			{
+				byte* pixel = row + (xOffset + i) * bytesPerPixel;
+
+				result[j, i] = pixel[componentOffset];
 			}
 		}
 
 		return result;
 	}
-
-	private static void SetPixels(Bitmap bitmap, double[,] a, double[,] b, double[,] c,
-		int yOffset, int xOffset)
+	
+	private static unsafe void SetPixels(
+		BitmapData bmpData, 
+		double[,] a, 
+		double[,] b, 
+		double[,] c, 
+		int yOffset, 
+		int xOffset)
 	{
 		var height = a.GetLength(0);
 		var width = a.GetLength(1);
 
-		for (var y = 0; y < height; y++)
-		for (var x = 0; x < width; x++)
-			bitmap.SetPixel(
-				xOffset + x, 
-				yOffset + y, 
-				Color.FromArgb(
-					Matrix.ToByte(a[y, x]), 
-					Matrix.ToByte(b[y, x]), 
-					Matrix.ToByte(c[y, x])
-					)
-				);
-	}
+		int stride = bmpData.Stride;
+    
+		byte* scan0 = (byte*)bmpData.Scan0.ToPointer();
+    
+		int bytesPerPixel = 3; 
 
-	private static double[,] GetSubMatrix(Bitmap matrix, int yOffset, int yLength, int xOffset, int xLength,
-		Func<Color, double> componentSelector)
+		for (var y = 0; y < height; y++)
+		{
+			byte* row = scan0 + (yOffset + y) * stride;
+
+			for (var x = 0; x < width; x++)
+			{
+				byte* pixel = row + (xOffset + x) * bytesPerPixel;
+
+				pixel[0] = ToByte(c[y, x]);
+				pixel[1] = ToByte(b[y, x]);
+				pixel[2] = ToByte(a[y, x]);
+			}
+		}
+	}
+	
+	public static byte ToByte(double d)
 	{
-		var result = new double[yLength, xLength];
-		for (var j = 0; j < yLength; j++)
-		for (var i = 0; i < xLength; i++)
-			result[j, i] = componentSelector(matrix.GetPixel(xOffset + i, yOffset + j));
-		return result;
+		var val = (int)d;
+		if (val > byte.MaxValue)
+			return byte.MaxValue;
+		if (val < byte.MinValue)
+			return byte.MinValue;
+		return (byte)val;
 	}
 
 	private byte[] QuantizeAndZigZagScan(double[,] channelFreqs)
