@@ -13,6 +13,7 @@ public class JpegProcessor : IJpegProcessor
 	public static readonly JpegProcessor Init = new();
 	public const int CompressionQuality = 70;
 	private const int DCTSize = 8;
+	private int[,] QuantizationMatrix { get; set; } = GetQuantizationMatrix(CompressionQuality);
 
 	public void Compress(string imagePath, string compressedImagePath)
 	{
@@ -31,7 +32,7 @@ public class JpegProcessor : IJpegProcessor
 		resultBmp.Save(uncompressedImagePath, ImageFormat.Bmp);
 	}
 
-	private static CompressedImage Compress(Bitmap bmp, int quality = 50)
+	private CompressedImage Compress(Bitmap bmp, int quality = 50)
 	{
 		var allQuantizedBytes = new List<byte>();
 
@@ -45,7 +46,7 @@ public class JpegProcessor : IJpegProcessor
 				{
 					var subMatrix = GetSubMatrix(bmp, y, DCTSize, x, DCTSize, selector);
 					var channelFreqs = DCT.DCT2D(subMatrix);
-					var quantizedFreqs = Quantize(channelFreqs, quality);
+					var quantizedFreqs = Quantize(channelFreqs);
 					var quantizedBytes = ZigZagScan(quantizedFreqs);
 					allQuantizedBytes.AddRange(quantizedBytes);
 				}
@@ -63,7 +64,7 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
-	private static Bitmap Uncompress(CompressedImage image)
+	private Bitmap Uncompress(CompressedImage image)
 	{
 		var height = image.Height - image.Height % 8;
 		var width = image.Width - image.Width % 8;
@@ -71,6 +72,8 @@ public class JpegProcessor : IJpegProcessor
 		using (var allQuantizedBytes =
 		       new MemoryStream(HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount)))
 		{
+			if (image.Quality != CompressionQuality)
+				QuantizationMatrix = GetQuantizationMatrix(image.Quality);
 			for (var y = 0; y < height; y += DCTSize)
 			{
 				for (var x = 0; x < width; x += DCTSize)
@@ -83,7 +86,7 @@ public class JpegProcessor : IJpegProcessor
 						var quantizedBytes = new byte[DCTSize * DCTSize];
 						allQuantizedBytes.ReadAsync(quantizedBytes, 0, quantizedBytes.Length).Wait();
 						var quantizedFreqs = ZigZagUnScan(quantizedBytes);
-						var channelFreqs = DeQuantize(quantizedFreqs, image.Quality);
+						var channelFreqs = DeQuantize(quantizedFreqs);
 						DCT.IDCT2D(channelFreqs, channel);
 					}
 
@@ -186,34 +189,31 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
-	private static byte[,] Quantize(double[,] channelFreqs, int quality)
+	private byte[,] Quantize(double[,] channelFreqs)
 	{
 		var result = new byte[channelFreqs.GetLength(0), channelFreqs.GetLength(1)];
 
-		var quantizationMatrix = GetQuantizationMatrix(quality);
 		for (int y = 0; y < channelFreqs.GetLength(0); y++)
 		{
 			for (int x = 0; x < channelFreqs.GetLength(1); x++)
 			{
-				result[y, x] = (byte)(channelFreqs[y, x] / quantizationMatrix[y, x]);
+				result[y, x] = (byte)(channelFreqs[y, x] / QuantizationMatrix[y, x]);
 			}
 		}
 
 		return result;
 	}
 
-	private static double[,] DeQuantize(byte[,] quantizedBytes, int quality)
+	private double[,] DeQuantize(byte[,] quantizedBytes)
 	{
 		var result = new double[quantizedBytes.GetLength(0), quantizedBytes.GetLength(1)];
-		var quantizationMatrix = GetQuantizationMatrix(quality);
-
 		for (int y = 0; y < quantizedBytes.GetLength(0); y++)
 		{
 			for (int x = 0; x < quantizedBytes.GetLength(1); x++)
 			{
 				result[y, x] =
 					((sbyte)quantizedBytes[y, x]) *
-					quantizationMatrix[y, x]; //NOTE cast to sbyte not to loose negative numbers
+					QuantizationMatrix[y, x];
 			}
 		}
 
