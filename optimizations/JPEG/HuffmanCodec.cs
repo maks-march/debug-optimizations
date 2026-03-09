@@ -83,7 +83,8 @@ class HuffmanCodec
 	public static byte[] Encode(IEnumerable<byte> data, out Dictionary<BitsWithLength, byte> decodeTable,
 		out long bitsCount)
 	{
-		var frequences = CalcFrequences(data);
+		var dataArr = data.ToArray();
+		var frequences = CalcFrequences(dataArr);
 
 		var root = BuildHuffmanTree(frequences);
 
@@ -91,8 +92,11 @@ class HuffmanCodec
 		FillEncodeTable(root, encodeTable);
 
 		var bitsBuffer = new BitsBuffer();
-		foreach (var b in data)
+		for (var index = 0; index < dataArr.Length; index++)
+		{
+			var b = dataArr[index];
 			bitsBuffer.Add(encodeTable[b]);
+		}
 
 		decodeTable = CreateDecodeTable(encodeTable);
 
@@ -209,16 +213,16 @@ class HuffmanCodec
 			.OrderBy(node => node.Frequency)
 			.ToList();
 	}
-
-	private static int[] CalcFrequences(IEnumerable<byte> data)
+	
+	private static int[] CalcFrequences(byte[] data) 
 	{
 		var result = new int[256];
-		Parallel.ForEach(
-			data,
-			() => new int[256],
-			(b, state, local) => { local[b]++; return local; },
-			local => { lock (result) for (int i = 0; i < 256; i++) result[i] += local[i]; }
-		);
+		
+		for (int i = 0; i < data.Length; i++)
+		{
+			result[data[i]]++;
+		}
+    
 		return result;
 	}
 }
