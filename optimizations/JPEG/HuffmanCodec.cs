@@ -199,8 +199,13 @@ class HuffmanCodec
 
 	private static int[] CalcFrequences(IEnumerable<byte> data)
 	{
-		var result = new int[byte.MaxValue + 1];
-		Parallel.ForEach(data, b => Interlocked.Increment(ref result[b]));
+		var result = new int[256];
+		Parallel.ForEach(
+			data,
+			() => new int[256],
+			(b, state, local) => { local[b]++; return local; },
+			local => { lock (result) for (int i = 0; i < 256; i++) result[i] += local[i]; }
+		);
 		return result;
 	}
 }
