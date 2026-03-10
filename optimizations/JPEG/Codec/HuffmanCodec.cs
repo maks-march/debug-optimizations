@@ -101,7 +101,24 @@ class HuffmanCodec
 			}
 		}
 	}
-
+	// private static HuffmanNode BuildHuffmanTree(int[] frequences)
+	// {
+	// 	var nodes = GetNodes(frequences);
+	//
+	// 	while (nodes.Count() > 1)
+	// 	{
+	// 		var firstMin = nodes.MinOrDefault(node => node.Frequency);
+	// 		nodes = nodes.Without(firstMin);
+	// 		var secondMin = nodes.MinOrDefault(node => node.Frequency);
+	// 		nodes = nodes.Without(secondMin);
+	// 		nodes = nodes.Concat(new HuffmanNode
+	// 				{ Frequency = firstMin.Frequency + secondMin.Frequency, Left = secondMin, Right = firstMin }
+	// 			.ToEnumerable());
+	// 	}
+	//
+	// 	return nodes.First();
+	// }
+	
 	private static HuffmanNode BuildHuffmanTree(int[] frequences)
 	{
 		var nodes = GetNodes(frequences);
@@ -133,6 +150,8 @@ class HuffmanCodec
 
 		return nodes.First();
 	}
+	
+	
 
 	private static List<HuffmanNode> GetNodes(int[] frequences)
 	{
