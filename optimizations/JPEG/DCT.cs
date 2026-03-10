@@ -1,15 +1,12 @@
 ﻿using System;
-using JPEG.Utilities;
 
 namespace JPEG;
 
 public class DCT
 {
 	private const int N = 8;
-	private static readonly float[,] PrecalcDCT_X = new float[N, N];
-	private static readonly float[,] PrecalcDCT_Y = new float[N, N];
-	private static readonly float[,] PrecalcIDCT_X = new float[N, N];
-	private static readonly float[,] PrecalcIDCT_Y = new float[N, N];
+	private static float[,] _temp = new float[N, N];
+	private static readonly float[,] PrecalcDCT = new float[N, N];
 
 	static DCT()
 	{
@@ -25,11 +22,7 @@ public class DCT
 			{
 				double cosVal = Math.Cos((2d * x + 1d) * u * Math.PI / (2 * N));
                 
-				PrecalcDCT_X[u, x] = (float)(cosVal * flagU * sqrtBeta);
-				PrecalcDCT_Y[u, x] = (float)(cosVal * 1.0 * sqrtBeta);
-
-				PrecalcIDCT_X[u, x] = (float)(cosVal * flagU * sqrtBeta);
-				PrecalcIDCT_Y[u, x] = (float)(cosVal * 1.0 * sqrtBeta);
+				PrecalcDCT[u, x] = (float)(cosVal * flagU * sqrtBeta);
 			}
 		}
 	}
@@ -37,29 +30,30 @@ public class DCT
 	public static float[,] DCT2D(byte[,] input, short shift = -128)
 	{
 		var coeffs = new float[N, N];
-		var temp = new float[N, N];
+		Array.Clear(_temp);
+		float sum;
 
-		for (int y = 0; y < N; y++)
+		for (byte y = 0; y < N; y++)
 		{
-			for (int u = 0; u < N; u++)
+			for (byte u = 0; u < N; u++)
 			{
-				float sum = 0f;
-				for (int x = 0; x < N; x++)
+				sum = 0f;
+				for (byte x = 0; x < N; x++)
 				{
-					sum += (input[x, y] + shift) * PrecalcDCT_X[u, x];
+					sum += (input[x, y] + shift) * PrecalcDCT[u, x];
 				}
-				temp[u, y] = sum;
+				_temp[u, y] = sum;
 			}
 		}
 
-		for (int u = 0; u < N; u++)
+		for (byte u = 0; u < N; u++)
 		{
-			for (int v = 0; v < N; v++)
+			for (byte v = 0; v < N; v++)
 			{
-				float sum = 0f;
-				for (int y = 0; y < N; y++)
+				sum = 0f;
+				for (byte y = 0; y < N; y++)
 				{
-					sum += temp[u, y] * PrecalcDCT_X[v, y];
+					sum += _temp[u, y] * PrecalcDCT[v, y];
 				}
 				coeffs[u, v] = sum;
 			}
@@ -70,29 +64,28 @@ public class DCT
 
 	public static void IDCT2D(int[,] coeffs, float[,] output, short shift = 128)
 	{
-		var temp = new float[N, N];
-
-		for (int x = 0; x < N; x++)
+		float sum;
+		for (byte x = 0; x < N; x++)
 		{
-			for (int v = 0; v < N; v++)
+			for (byte v = 0; v < N; v++)
 			{
-				float sum = 0f;
-				for (int u = 0; u < N; u++)
+				sum = 0f;
+				for (byte u = 0; u < N; u++)
 				{
-					sum += coeffs[u, v] * PrecalcIDCT_X[u, x];
+					sum += coeffs[u, v] * PrecalcDCT[u, x];
 				}
-				temp[x, v] = sum;
+				_temp[x, v] = sum;
 			}
 		}
 
-		for (int x = 0; x < N; x++)
+		for (byte x = 0; x < N; x++)
 		{
-			for (int y = 0; y < N; y++)
+			for (byte y = 0; y < N; y++)
 			{
-				float sum = 0f;
-				for (int v = 0; v < N; v++)
+				sum = 0f;
+				for (byte v = 0; v < N; v++)
 				{
-					sum += temp[x, v] * PrecalcIDCT_X[v, y];
+					sum += _temp[x, v] * PrecalcDCT[v, y];
 				}
 				output[x, y] = sum + shift;
 			}

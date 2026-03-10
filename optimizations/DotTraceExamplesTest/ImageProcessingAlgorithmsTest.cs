@@ -1,4 +1,3 @@
-using System.IO;
 using DotTraceExamples;
 using ImageProcessing;
 using NUnit.Framework;

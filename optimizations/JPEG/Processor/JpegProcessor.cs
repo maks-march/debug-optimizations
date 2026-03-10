@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Linq;
 
 namespace JPEG.Processor;
 
@@ -45,12 +44,14 @@ public class JpegProcessor : IJpegProcessor
 
 	private CompressedImage Compress(Bitmap bmp, int quality = 50)
 	{
-		var allQuantizedBytes = new List<byte>();
 
 		var height = bmp.Height - bmp.Height % 8;
 		var width = bmp.Width - bmp.Width % 8;
 		var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+		var allQuantizedBytes = new List<byte>((int)(width * height * 1.5));
+		
 		BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+		
 		for (var y = 0; y < height; y += DCTSize)
 		{
 			for (var x = 0; x < width; x += DCTSize)
@@ -168,23 +169,13 @@ public class JpegProcessor : IJpegProcessor
 			{
 				byte* pixel = row + (xOffset + x) * bytesPerPixel;
 
-				pixel[0] = ToByte(c[y, x]);
-				pixel[1] = ToByte(b[y, x]);
-				pixel[2] = ToByte(a[y, x]);
+				pixel[0] = (byte)c[y, x];
+				pixel[1] = (byte)(b[y, x]);
+				pixel[2] = (byte)(a[y, x]);
 			}
 		}
 	}
 	
-	public static byte ToByte(double d)
-	{
-		var val = (int)d;
-		if (val > byte.MaxValue)
-			return byte.MaxValue;
-		if (val < byte.MinValue)
-			return byte.MinValue;
-		return (byte)val;
-	}
-
 	private byte[] QuantizeAndZigZagScan(float[,] channelFreqs)
 	{
 		var result = new byte[64];
