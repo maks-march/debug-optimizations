@@ -2,13 +2,13 @@
 
 namespace JPEG;
 
-public class DCT
+public class DCT2D
 {
 	private const int N = 8;
 	private static float[,] _temp = new float[N, N];
 	private static readonly float[,] PrecalcDCT = new float[N, N];
 
-	static DCT()
+	static DCT2D()
 	{
 		double beta = 1d / N + 1d / N;
 		double alpha = 1 / Math.Sqrt(2);
@@ -27,7 +27,9 @@ public class DCT
 		}
 	}
 	
-	public static float[,] DCT2D(byte[,] input, short shift = -128)
+	
+	
+	public static float[,] DCT(byte[,] input, short shift = -128)
 	{
 		var coeffs = new float[N, N];
 		Array.Clear(_temp);
@@ -62,7 +64,7 @@ public class DCT
 		return coeffs;
 	}
 
-	public static void IDCT2D(int[,] coeffs, float[,] output, short shift = 128)
+	public static void IDCT(int[,] coeffs, float[,] output, short shift = 128)
 	{
 		float sum;
 		for (byte x = 0; x < N; x++)
