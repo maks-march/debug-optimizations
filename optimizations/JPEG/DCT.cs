@@ -6,48 +6,62 @@ namespace JPEG;
 public class DCT
 {
 	private const int N = 8;
-	private static double _beta = 1d / N + 1d / N;
-	private static double _alpha = 1 / Math.Sqrt(2);
-	private static readonly double[,] cosX = new double[N, N];
-	private static readonly double[,] cosY = new double[N, N];
-	private static readonly double[] flagU = new double[N];
-	private static readonly double[] flagV = new double[N];
+	private static readonly float[,] PrecalcDCT_X = new float[N, N];
+	private static readonly float[,] PrecalcDCT_Y = new float[N, N];
+	private static readonly float[,] PrecalcIDCT_X = new float[N, N];
+	private static readonly float[,] PrecalcIDCT_Y = new float[N, N];
 
 	static DCT()
 	{
-		Array.Fill(flagU, 1);
-		Array.Fill(flagV, 1);
-		flagU[0] = _alpha;
-		flagV[0] = _alpha;
-		for (int u = 0; u < N; u++)
-		for (int x = 0; x < N; x++)
-			cosX[u, x] = Math.Cos((2d * x + 1d) * u * Math.PI / (2 * N));
+		double beta = 1d / N + 1d / N;
+		double alpha = 1 / Math.Sqrt(2);
+        
+		double sqrtBeta = Math.Sqrt(beta);
 
-		for (int v = 0; v < N; v++)
-		for (int y = 0; y < N; y++)
-			cosY[v, y] = Math.Cos((2d * y + 1d) * v * Math.PI / (2 * N));
+		for (int u = 0; u < N; u++)
+		{
+			double flagU = (u == 0) ? alpha : 1.0;
+			for (int x = 0; x < N; x++)
+			{
+				double cosVal = Math.Cos((2d * x + 1d) * u * Math.PI / (2 * N));
+                
+				PrecalcDCT_X[u, x] = (float)(cosVal * flagU * sqrtBeta);
+				PrecalcDCT_Y[u, x] = (float)(cosVal * 1.0 * sqrtBeta);
+
+				PrecalcIDCT_X[u, x] = (float)(cosVal * flagU * sqrtBeta);
+				PrecalcIDCT_Y[u, x] = (float)(cosVal * 1.0 * sqrtBeta);
+			}
+		}
 	}
 	
 	public static float[,] DCT2D(byte[,] input, short shift = -128)
 	{
 		var coeffs = new float[N, N];
-		double sum;
-		for (byte u = 0; u < N; u++)
+		var temp = new float[N, N];
+
+		for (int y = 0; y < N; y++)
 		{
-			for (byte v = 0; v < N; v++)
+			for (int u = 0; u < N; u++)
 			{
-				sum = 0.0f;
-				for (byte x = 0; x < N; x++)
+				float sum = 0f;
+				for (int x = 0; x < N; x++)
 				{
-					for (byte y = 0; y < N; y++)
-					{
-						sum += (input[x, y] + shift) * cosX[u, x] * cosY[v, y];
-					}
+					sum += (input[x, y] + shift) * PrecalcDCT_X[u, x];
 				}
-				coeffs[u, v] = (float)
-					(
-						sum * _beta * flagU[u] * flagV[v]
-					);
+				temp[u, y] = sum;
+			}
+		}
+
+		for (int u = 0; u < N; u++)
+		{
+			for (int v = 0; v < N; v++)
+			{
+				float sum = 0f;
+				for (int y = 0; y < N; y++)
+				{
+					sum += temp[u, y] * PrecalcDCT_X[v, y];
+				}
+				coeffs[u, v] = sum;
 			}
 		}
 
@@ -56,22 +70,31 @@ public class DCT
 
 	public static void IDCT2D(int[,] coeffs, float[,] output, short shift = 128)
 	{
-		double sum;
-		
-		for (var x = 0; x < N; x++)
+		var temp = new float[N, N];
+
+		for (int x = 0; x < N; x++)
 		{
-			for (var y = 0; y < N; y++)
+			for (int v = 0; v < N; v++)
 			{
-				sum = 0.0;
+				float sum = 0f;
 				for (int u = 0; u < N; u++)
 				{
-					for (int v = 0; v < N; v++)
-					{
-						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] * flagU[u] * flagV[v];
-					}
+					sum += coeffs[u, v] * PrecalcIDCT_X[u, x];
 				}
+				temp[x, v] = sum;
+			}
+		}
 
-				output[x, y] = (float)(sum * _beta + shift);
+		for (int x = 0; x < N; x++)
+		{
+			for (int y = 0; y < N; y++)
+			{
+				float sum = 0f;
+				for (int v = 0; v < N; v++)
+				{
+					sum += temp[x, v] * PrecalcIDCT_X[v, y];
+				}
+				output[x, y] = sum + shift;
 			}
 		}
 	}
