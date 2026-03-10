@@ -34,7 +34,7 @@ class HuffmanCodec
 
 	public static byte[] Decode(byte[] encodedData, Dictionary<BitsWithLength, byte> decodeTable, long bitsCount)
 	{
-		int maxBitsCount = 16; 
+		int maxBitsCount = 20; 
 		short[] fastDecodeTable = new short[1 << (maxBitsCount + 1)];
 		Array.Fill(fastDecodeTable, (short)-1);
 
@@ -101,23 +101,6 @@ class HuffmanCodec
 			}
 		}
 	}
-	// private static HuffmanNode BuildHuffmanTree(int[] frequences)
-	// {
-	// 	var nodes = GetNodes(frequences);
-	//
-	// 	while (nodes.Count() > 1)
-	// 	{
-	// 		var firstMin = nodes.MinOrDefault(node => node.Frequency);
-	// 		nodes = nodes.Without(firstMin);
-	// 		var secondMin = nodes.MinOrDefault(node => node.Frequency);
-	// 		nodes = nodes.Without(secondMin);
-	// 		nodes = nodes.Concat(new HuffmanNode
-	// 				{ Frequency = firstMin.Frequency + secondMin.Frequency, Left = secondMin, Right = firstMin }
-	// 			.ToEnumerable());
-	// 	}
-	//
-	// 	return nodes.First();
-	// }
 	
 	private static HuffmanNode BuildHuffmanTree(int[] frequences)
 	{
@@ -125,42 +108,31 @@ class HuffmanCodec
 
 		while (nodes.Count > 1)
 		{
-			var firstMin = nodes.FirstOrDefault();
-			var secondMin = nodes.Skip(1).FirstOrDefault();
-			if (nodes.Count != 0)
-				nodes.Remove(firstMin);
-			if (nodes.Count != 0)
-				nodes.Remove(secondMin);
-			var newNode = new HuffmanNode
+			var firstMin = nodes.Dequeue();
+			var secondMin = nodes.Dequeue();
+			var newNode = new HuffmanNode()
 			{
-				Frequency = 0,
-				Right = firstMin,
-				Left = secondMin
+				Frequency = firstMin.Frequency + secondMin.Frequency,
+				Left = secondMin,
+				Right = firstMin
 			};
-			if (firstMin != null)
-			{
-				newNode.Frequency += firstMin.Frequency;
-			}
-			if (secondMin != null)
-			{
-				newNode.Frequency += secondMin.Frequency;
-			}
-			nodes.Add(newNode);
+			nodes.Enqueue(newNode, newNode.Frequency);
 		}
 
-		return nodes.First();
+		return nodes.Dequeue();
 	}
 	
-	
-
-	private static List<HuffmanNode> GetNodes(int[] frequences)
+	private static PriorityQueue<HuffmanNode, int> GetNodes(int[] frequences)
 	{
-		return Enumerable.Range(0, byte.MaxValue + 1)
+		var nodes = Enumerable.Range(0, byte.MaxValue + 1)
 			.Select(num => new HuffmanNode { Frequency = frequences[num], LeafLabel = (byte)num })
-			.Where(node => node.Frequency > 0)
-			.OrderBy(node => node.Frequency)
-			.ToList();
+			.Where(node => node.Frequency > 0);
+		var queue = new PriorityQueue<HuffmanNode, int>();
+		foreach (var node in nodes)
+			queue.Enqueue(node, node.Frequency);
+		return queue;
 	}
+
 	
 	private static int[] CalcFrequences(byte[] data) 
 	{
