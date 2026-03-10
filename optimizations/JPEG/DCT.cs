@@ -10,14 +10,15 @@ public class DCT
 	private static double _alpha = 1 / Math.Sqrt(2);
 	private static readonly double[,] cosX = new double[N, N];
 	private static readonly double[,] cosY = new double[N, N];
+	private static readonly double[] flagU = new double[N];
+	private static readonly double[] flagV = new double[N];
 
 	static DCT()
 	{
-		BuildCosCache(N);
-	}
-
-	private static void BuildCosCache(int N)
-	{
+		Array.Fill(flagU, 1);
+		Array.Fill(flagV, 1);
+		flagU[0] = _alpha;
+		flagV[0] = _alpha;
 		for (int u = 0; u < N; u++)
 		for (int x = 0; x < N; x++)
 			cosX[u, x] = Math.Cos((2d * x + 1d) * u * Math.PI / (2 * N));
@@ -31,14 +32,10 @@ public class DCT
 	{
 		var coeffs = new float[N, N];
 		double sum;
-		byte flagU;
-		byte flagV;
 		for (byte u = 0; u < N; u++)
 		{
 			for (byte v = 0; v < N; v++)
 			{
-				flagU = (byte)((8 - u) / 8);
-				flagV = (byte)((8 - v) / 8);
 				sum = 0.0f;
 				for (byte x = 0; x < N; x++)
 				{
@@ -49,9 +46,7 @@ public class DCT
 				}
 				coeffs[u, v] = (float)
 					(
-						sum * _beta * 
-						(flagU * _alpha + 1 - flagU) * 
-						(flagV * _alpha + 1 - flagV)
+						sum * _beta * flagU[u] * flagV[v]
 					);
 			}
 		}
@@ -62,8 +57,6 @@ public class DCT
 	public static void IDCT2D(int[,] coeffs, float[,] output, short shift = 128)
 	{
 		double sum;
-		byte flagU;
-		byte flagV;
 		
 		for (var x = 0; x < N; x++)
 		{
@@ -74,10 +67,7 @@ public class DCT
 				{
 					for (int v = 0; v < N; v++)
 					{
-						flagU = (byte)((8 - u) / 8);
-						flagV = (byte)((8 - v) / 8);
-						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] *
-						       (flagU * _alpha + 1 - flagU) * (flagV * _alpha + 1 - flagV);
+						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] * flagU[u] * flagV[v];
 					}
 				}
 
