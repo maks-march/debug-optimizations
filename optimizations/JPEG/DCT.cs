@@ -7,6 +7,7 @@ public class DCT
 {
 	private const int N = 8;
 	private static double _beta = 1d / N + 1d / N;
+	private static double _alpha = 1 / Math.Sqrt(2);
 	private static readonly double[,] cosX = new double[N, N];
 	private static readonly double[,] cosY = new double[N, N];
 
@@ -49,8 +50,8 @@ public class DCT
 				coeffs[u, v] = (float)
 					(
 						sum * _beta * 
-						(flagU * 1 / Math.Sqrt(2) + 1 - flagU) * 
-						(flagV * 1 / Math.Sqrt(2) + 1 - flagV)
+						(flagU * _alpha + 1 - flagU) * 
+						(flagV * _alpha + 1 - flagV)
 					);
 			}
 		}
@@ -76,7 +77,7 @@ public class DCT
 						flagU = (byte)((8 - u) / 8);
 						flagV = (byte)((8 - v) / 8);
 						sum += coeffs[u, v] * cosX[u, x] * cosY[v, y] *
-						       (flagU * 1 / Math.Sqrt(2) + 1 - flagU) * (flagV * 1 / Math.Sqrt(2) + 1 - flagV);
+						       (flagU * _alpha + 1 - flagU) * (flagV * _alpha + 1 - flagV);
 					}
 				}
 

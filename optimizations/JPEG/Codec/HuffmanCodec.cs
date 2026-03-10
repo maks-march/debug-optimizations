@@ -7,69 +7,6 @@ using JPEG.Utilities;
 
 namespace JPEG;
 
-class HuffmanNode
-{
-	public byte? LeafLabel { get; set; }
-	public int Frequency { get; set; }
-	public HuffmanNode Left { get; set; }
-	public HuffmanNode Right { get; set; }
-}
-
-public class BitsWithLength
-{
-	public int Bits { get; set; }
-	public int BitsCount { get; set; }
-
-	public class Comparer : IEqualityComparer<BitsWithLength>
-	{
-		public bool Equals(BitsWithLength x, BitsWithLength y)
-		{
-			if (x == y) return true;
-			if (x == null || y == null)
-				return false;
-			return x.BitsCount == y.BitsCount && x.Bits == y.Bits;
-		}
-
-		public int GetHashCode(BitsWithLength obj)
-		{
-			if (obj == null)
-				return 0;
-			return ((397 * obj.Bits) << 5) ^ (17 * obj.BitsCount);
-		}
-	}
-}
-
-class BitsBuffer
-{
-	private BitsWithLength unfinishedBits = new BitsWithLength();
-
-	private readonly List<byte> _buffer = new List<byte>(1500000); 
-	private int _accumulator = 0;
-	private int _bitCount = 0;
-
-	public void Add(int bits, int length)
-	{
-		_accumulator = (_accumulator << length) | bits;
-		_bitCount += length;
-
-		while (_bitCount >= 8)
-		{
-			_bitCount -= 8;
-            
-			_buffer.Add((byte)(_accumulator >> _bitCount));
-		}
-	}
-
-	public byte[] ToArray(out long bitsCount)
-	{
-		bitsCount = _buffer.Count * 8L + unfinishedBits.BitsCount;
-		_buffer.Add((byte)(_accumulator << 8 - _bitCount));
-		_bitCount = 0;
-		_accumulator = 0;
-		return _buffer.ToArray();
-	}
-}
-
 class HuffmanCodec
 {
 	public static byte[] Encode(IEnumerable<byte> data, out Dictionary<BitsWithLength, byte> decodeTable,

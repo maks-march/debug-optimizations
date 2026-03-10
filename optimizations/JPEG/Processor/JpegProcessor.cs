@@ -188,14 +188,15 @@ public class JpegProcessor : IJpegProcessor
 	private byte[] QuantizeAndZigZagScan(float[,] channelFreqs)
 	{
 		var result = new byte[64];
-
+		var quantizationMatrix = QuantizationMatrix;
+		
 		for (int i = 0; i < 64; i++)
 		{
 			int flatIndex = ZigZagMap[i];
         
 			int y = flatIndex / 8;
 			int x = flatIndex % 8;
-			result[i] = (byte)(channelFreqs[y, x] / QuantizationMatrix[y, x]);
+			result[i] = (byte)(channelFreqs[y, x] / quantizationMatrix[y, x]);
 		}
 
 		return result;
@@ -204,13 +205,14 @@ public class JpegProcessor : IJpegProcessor
 	private int[,] DequantizeAndZigZagUnScan(byte[] quantizedBytes)
 	{
 		var result = new int[8,8];
+		var quantizationMatrix = QuantizationMatrix;
 
 		for (int i = 0; i < 64; i++)
 		{
 			int flatIndex = ZigZagMap[i];
 			int y = flatIndex / 8;
 			int x = flatIndex % 8;
-			result[y, x] = ((sbyte)quantizedBytes[i] * QuantizationMatrix[y, x]);
+			result[y, x] = ((sbyte)quantizedBytes[i] * quantizationMatrix[y, x]);
 		}
 
 		return result;
