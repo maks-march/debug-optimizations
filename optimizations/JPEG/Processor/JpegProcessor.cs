@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace JPEG.Processor;
 
@@ -34,31 +35,42 @@ public class JpegProcessor : IJpegProcessor
 		var height = bmp.Height - bmp.Height % DCTSize;
 		var width = bmp.Width - bmp.Width % DCTSize;
 		var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-		var allQuantizedBytes = new List<byte>((int)(width * height * 1.5));
-
-		BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-		float[] dctInput = new float[64];
-		float[] dctOutput = new float[64];
-
-		byte[] Y0 = new byte[64], Y1 = new byte[64], Y2 = new byte[64], Y3 = new byte[64];
-		byte[] Cb = new byte[64], Cr = new byte[64];
-		for (var y = 0; y < height; y += DCTSize)
+		
+		BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+		
+		int rowsCount = height / DCTSize;
+		int colsCount = width / DCTSize;
+		List<byte>[] rowResults = new List<byte>[rowsCount];
+		Parallel.For(0, rowsCount, rowIndex =>
 		{
+			int y = rowIndex * DCTSize;
+			float[] dctOutput = new float[64];
+
+			byte[] Y0 = new byte[64], Y1 = new byte[64], Y2 = new byte[64], Y3 = new byte[64];
+			byte[] Cb = new byte[64], Cr = new byte[64];
+			var rowBytes = new List<byte>(colsCount * 6 * 64);
 			for (var x = 0; x < width; x += DCTSize)
 			{
 				FastBitmap.ExtractBlock(bmpData, x, y, Y0, Y1, Y2, Y3, Cb, Cr);
-				ProcessBlock(Y0, dctInput, dctOutput, allQuantizedBytes); // Левый верхний 8x8
-				ProcessBlock(Y1, dctInput, dctOutput, allQuantizedBytes); // Правый верхний 8x8
-				ProcessBlock(Y2, dctInput, dctOutput, allQuantizedBytes); // Левый нижний 8x8
-				ProcessBlock(Y3, dctInput, dctOutput, allQuantizedBytes); // Правый нижний 8x8
+				
+				ProcessBlock(Y0, dctOutput, rowBytes); // Левый верхний 8x8
+				ProcessBlock(Y1, dctOutput, rowBytes); // Правый верхний 8x8
+				ProcessBlock(Y2, dctOutput, rowBytes); // Левый нижний 8x8
+				ProcessBlock(Y3, dctOutput, rowBytes); // Правый нижний 8x8
 
 				// 3. ОБРАБАТЫВАЕМ ЦВЕТ (Cb и Cr) - их всего по одному блоку на зону 16x16!
 				// Внимание: для цвета должна применяться ДРУГАЯ таблица квантования (более жесткая)
-				ProcessBlock(Cb, dctInput, dctOutput, allQuantizedBytes);
-				ProcessBlock(Cr, dctInput, dctOutput, allQuantizedBytes);
+				ProcessBlock(Cb, dctOutput, rowBytes);
+				ProcessBlock(Cr, dctOutput, rowBytes);
 			}
+			rowResults[rowIndex] = rowBytes;
+		});
+		
+		var allQuantizedBytes = new List<byte>((int)(width * height * 1.5));
+		for (int i = 0; i < rowsCount; i++)
+		{
+			allQuantizedBytes.AddRange(rowResults[i]);
 		}
-
 		bmp.UnlockBits(bmpData);
 
 		long bitsCount;
@@ -72,11 +84,10 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
-	private void ProcessBlock(byte[] block, float[] input, float[] output, List<byte> outputList)
+	private void ProcessBlock(byte[] block, float[] output, List<byte> outputList)
 	{
 		DCT1D.DCT(block, output);
-
-		// Передаем флаг isChroma в твой метод квантования, 
+		// Передаем флаг isChroma в метод квантования, 
 		// потому что стандарт JPEG требует разных матриц квантования для Яркости и Цвета!
 		var quantized = Quantizer.QuantizeAndZigZagScan(output);
 		outputList.AddRange(quantized);
