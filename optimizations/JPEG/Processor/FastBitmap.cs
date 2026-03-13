@@ -102,9 +102,9 @@ public static class FastBitmap
 	            int CbInt = (int)cbVal;
 	            int CrInt = (int)crVal;
 
-	            // 5. Записываем в память (Format24bppRgb хранит как B, G, R)
 	            byte* pixel = row + (startX + dx) * 3;
-	            // 5. Ограничиваем значения от 0 до 255 (ОБЯЗАТЕЛЬНО!)
+	            // 5. Записываем в память (Format24bppRgb хранит как B, G, R)
+	            // 6. Ограничиваем значения от 0 до 255 (ОБЯЗАТЕЛЬНО!)
 	            // Из-за потерь при квантовании значения могут вылезти за пределы 0-255.
 	            pixel[0] = ToByte(Y + ((454 * CbInt) >> 8));
 	            pixel[1] = ToByte(Y - ((88 * CbInt + 183 * CrInt) >> 8));

@@ -95,8 +95,8 @@ public class JpegProcessor : IJpegProcessor
 
 	private Bitmap Uncompress(CompressedImage image)
 	{
-		var height = image.Height - image.Height % 8;
-		var width = image.Width - image.Width % 8;
+		var height = image.Height - image.Height % DCTSize;
+		var width = image.Width - image.Width % DCTSize;
 		var result = new Bitmap(width, height);
 		var rect = new Rectangle(0, 0, result.Width, result.Height);
 		using (var stream =
