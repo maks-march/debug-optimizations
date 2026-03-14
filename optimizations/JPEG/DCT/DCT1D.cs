@@ -1,14 +1,42 @@
 using System;
+using JPEG.Processor;
 
 namespace JPEG;
 
 public class DCT1D
 {
     private const int N = 8;
-    private float[,] _temp = new float[N, N];
     // единая таблица предрасчетов для DCT и IDCT.
     // размер 64, индекс считается как: (Строка * Ширина + Колонка)
     private static readonly float[] PrecalcTable = new float[N * N];
+    // стандартные матрицы квантования JPEG
+    public static readonly byte[] LumaQuantMatrix = new byte[64]
+    {
+        16, 11, 10, 16,  24,  40,  51,  61,
+        12, 12, 14, 19,  26,  58,  60,  55,
+        14, 13, 16, 24,  40,  57,  69,  56,
+        14, 17, 22, 29,  51,  87,  80,  62,
+        18, 22, 37, 56,  68, 109, 103,  77,
+        24, 35, 55, 64,  81, 104, 113,  92,
+        49, 64, 78, 87, 103, 121, 120, 101,
+        72, 92, 95, 98, 112, 100, 103,  99
+    };
+
+    public static readonly byte[] ChromaQuantMatrix = new byte[64]
+    {
+        17, 18, 24, 47, 99, 99, 99, 99,
+        18, 21, 26, 66, 99, 99, 99, 99,
+        24, 26, 56, 99, 99, 99, 99, 99,
+        47, 66, 99, 99, 99, 99, 99, 99,
+        99, 99, 99, 99, 99, 99, 99, 99,
+        99, 99, 99, 99, 99, 99, 99, 99,
+        99, 99, 99, 99, 99, 99, 99, 99,
+        99, 99, 99, 99, 99, 99, 99, 99
+    };
+
+    public static readonly float[] InvLumaQ = new float[64];
+    public static readonly float[] InvChromaQ = new float[64];
+
 
     static DCT1D()
     {
@@ -29,14 +57,18 @@ public class DCT1D
                 PrecalcTable[freq * N + space] = (float)(cosVal * flag * sqrtBeta);
             }
         }
+        for (int i = 0; i < 64; i++)
+        {
+            InvLumaQ[i] = 1.0f / LumaQuantMatrix[i];
+            InvChromaQ[i] = 1.0f / ChromaQuantMatrix[i];
+        }
     }
     
     // вместо возвращения нового массива, пишем результат в переданный массив `coeffs`.
     // input и coeffs должны иметь размер 64!
-    public static void DCT(byte[] input, float[] coeffs, short shift = -128)
+    public static void DCT(float[] temp, byte[] input, byte[] output, short shift = -128, bool isChroma = false)
     {
-        // временный массив для хранения строк
-        var temp = new float[64]; 
+        float[] invQ = isChroma ? InvChromaQ : InvLumaQ;
 
         // проход по строкам (Spatial X -> Frequency U)
         for (int y = 0; y < N; y++)
@@ -69,14 +101,14 @@ public class DCT1D
                     sum += temp[y * N + u] * PrecalcTable[vOffset + y];
                 }
                 // записываем результат: coeffs[v, u]
-                coeffs[vOffset + u] = sum;
+                output[vOffset + u] = (byte)(sum * invQ[vOffset + u]);
             }
         }
     }
 
-    public static void IDCT(short[] coeffs, float[] output, short shift = 128)
+    public static void IDCT(float[] temp, byte[] input, short[] output, short shift = 128, bool isChroma = false)
     {
-        var temp = new float[64];
+        byte[] qMatrix = isChroma ? ChromaQuantMatrix : LumaQuantMatrix;
 
         // обратный проход по столбцам (Frequency V -> Spatial Y)
         for (int u = 0; u < N; u++)
@@ -87,7 +119,7 @@ public class DCT1D
                 for (int v = 0; v < N; v++)
                 {
                     // coeffs[v, u] и PrecalcTable[v, y]
-                    sum += coeffs[v * N + u] * PrecalcTable[v * N + y];
+                    sum += (short)((sbyte)input[v * N + u] * qMatrix[v * N + u]) * PrecalcTable[v * N + y];
                 }
                 // temp[y, u]
                 temp[y * N + u] = sum;
@@ -107,7 +139,7 @@ public class DCT1D
                     sum += temp[yOffset + u] * PrecalcTable[u * N + x];
                 }
                 // output[y, x]
-                output[yOffset + x] = sum + shift;
+                output[yOffset + x] = (short)(sum + shift);
             }
         }
     }

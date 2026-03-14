@@ -71,7 +71,7 @@ public static class FastBitmap
 	
     public static unsafe void WriteBlock(
 	    BitmapData bmpData, int startX, int startY, 
-	    float[] Y0, float[] Y1, float[] Y2, float[] Y3, float[] Cb, float[] Cr)
+	    short[] Y0, short[] Y1, short[] Y2, short[] Y3, short[] Cb, short[] Cr)
 	{
 		// длинна строки bitmap
 		int stride = bmpData.Stride;

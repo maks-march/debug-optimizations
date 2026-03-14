@@ -47,9 +47,10 @@ public class JpegProcessor : IJpegProcessor
 		Parallel.For(0, rowsCount, rowIndex =>
 		{
 			int y = rowIndex * DCTSize;
+			// временный массив для хранения строк
+			var temp = new float[64]; 
 			// хранит результат выполнения DCT
-			float[] dctOutput = new float[64];
-			
+			byte[] dctOutput = new byte[64];
 			// яркости для каждого пикселя блоков 8 на 8,
 			// и усредненные разности цветов для блока пикселей 2 на 2
 			byte[] Y0 = new byte[64], Y1 = new byte[64], Y2 = new byte[64], Y3 = new byte[64];
@@ -62,15 +63,15 @@ public class JpegProcessor : IJpegProcessor
 				FastBitmap.ExtractBlock(bmpData, x, y, Y0, Y1, Y2, Y3, Cb, Cr);
 				
 				// обрабатываем блоки 8 на 8
-				ProcessBlock(Y0, dctOutput, rowBytes); // левый верхний 8x8
-				ProcessBlock(Y1, dctOutput, rowBytes); // правый верхний 8x8
-				ProcessBlock(Y2, dctOutput, rowBytes); // левый нижний 8x8
-				ProcessBlock(Y3, dctOutput, rowBytes); // правый нижний 8x8
+				ProcessBlock(temp, Y0, dctOutput, rowBytes); // левый верхний 8x8
+				ProcessBlock(temp, Y1, dctOutput, rowBytes); // правый верхний 8x8
+				ProcessBlock(temp, Y2, dctOutput, rowBytes); // левый нижний 8x8
+				ProcessBlock(temp, Y3, dctOutput, rowBytes); // правый нижний 8x8
 
 				// обрабатываем Cb и Cr
 				// для цвета применяется другая матрица квантования
-				ProcessBlock(Cb, dctOutput, rowBytes, isChroma: true);
-				ProcessBlock(Cr, dctOutput, rowBytes, isChroma: true);
+				ProcessBlock(temp, Cb, dctOutput, rowBytes, isChroma: true);
+				ProcessBlock(temp, Cr, dctOutput, rowBytes, isChroma: true);
 			}
 			// записываем полученные байты в свою ячейку
 			rowResults[rowIndex] = rowBytes;
@@ -94,14 +95,14 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
-	private void ProcessBlock(byte[] block, float[] output, List<byte> outputList, bool isChroma = false)
+	private void ProcessBlock(float[] temp, byte[] block, byte[] output, List<byte> outputList, bool isChroma = false)
 	{
 		// выполняем дискретное косинусное преобразование
-		DCT1D.DCT(block, output);
+		DCT1D.DCT(temp, block, output, isChroma: isChroma);
 		// размещаем байты зигзагом и делим на матрицу квантования
 		// передаем флаг isChroma в метод квантования
-		var quantized = Quantizer.QuantizeAndZigZagScan(output, isChroma);
-		outputList.AddRange(quantized);
+		// var quantized = Quantizer.QuantizeAndZigZagScan(output, isChroma);
+		outputList.AddRange(output);
 	}
 
 	private Bitmap Uncompress(CompressedImage image)
@@ -110,56 +111,67 @@ public class JpegProcessor : IJpegProcessor
 		var height = image.Height - image.Height % DCTSize;
 		var width = image.Width - image.Width % DCTSize;
 		var result = new Bitmap(width, height);
-		// получаем поток из декодированных байтов, чтобы не хранить их все сразу
-		using (var stream =
-		       new MemoryStream(HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount)))
+		// декодируем все байты
+		byte[] decodedBytes = HuffmanCodec.Decode(image.CompressedBytes, image.DecodeTable, image.BitsCount);
+		// получаем BitmapData для быстрого взаимодействия через указатели
+		var rect = new Rectangle(0, 0, result.Width, result.Height);
+		BitmapData bmpData = result.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+		
+		// нужны для параллельного обхода по строкам
+		int rowsCount = height / DCTSize;
+		int colsCount = width / DCTSize;
+		short bytesUsedInIteration = 64 * 6;
+		Parallel.For(0, rowsCount, rowIndex =>
 		{
-			// получаем BitmapData для быстрого взаимодействия через указатели
-			var rect = new Rectangle(0, 0, result.Width, result.Height);
-			BitmapData bmpData = result.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-			
+			int y = rowIndex * DCTSize;
+			// временный массив для хранения строк
+			var temp = new float[64]; 
 			// буфер для чтения из потока
-			byte[] buffer = new byte[64]; 
-			// буфер для деквантования
-			short[] coeffs = new short[64];
-			
+			byte[] buffer = new byte[64];
+		
 			// яркости для каждого пикселя блоков 8 на 8,
 			// и усредненные разности цветов для блока пикселей 2 на 2
-			float[] Y0 = new float[64], Y1 = new float[64], Y2 = new float[64], Y3 = new float[64];
-			float[] Cb = new float[64], Cr = new float[64];
-			for (var y = 0; y < height; y += DCTSize)
+			short[] Y0 = new short[64], Y1 = new short[64], Y2 = new short[64], Y3 = new short[64];
+			short[] Cb = new short[64], Cr = new short[64];
+			
+			for (var x = 0; x < width; x += DCTSize)
 			{
-				for (var x = 0; x < width; x += DCTSize)
-				{
-					// читаем и декодируем блоки яркости Y
-					DecodeBlock(stream, buffer, coeffs, Y0, isChroma: false);
-					DecodeBlock(stream, buffer, coeffs, Y1, isChroma: false);
-					DecodeBlock(stream, buffer, coeffs, Y2, isChroma: false);
-					DecodeBlock(stream, buffer, coeffs, Y3, isChroma: false);
+				// количество прочитанных до этой итерации байтов
+				int offset = bytesUsedInIteration * (rowIndex * colsCount + x / DCTSize);
+				// есть вероятность что байты вышли за структуру 16 на 16
+				// читаем и декодируем блоки яркости Y
+				DecodeBlock(temp, decodedBytes, buffer, Y0, offset);
+				DecodeBlock(temp, decodedBytes, buffer, Y1, offset + 64);
+				DecodeBlock(temp, decodedBytes, buffer, Y2, offset + 128);
+				DecodeBlock(temp, decodedBytes, buffer, Y3, offset + 192);
 
-					// читаем и декодируем блоки цвета Cb, Cr
-					DecodeBlock(stream, buffer, coeffs, Cb, isChroma: true);
-					DecodeBlock(stream, buffer, coeffs, Cr, isChroma: true);
+				// читаем и декодируем блоки цвета Cb, Cr
+				DecodeBlock(temp, decodedBytes, buffer, Cb, offset + 256);
+				DecodeBlock(temp, decodedBytes, buffer, Cr, offset + 320);
 
-					// собираем макроблок 16x16, переводим YCbCr->RGB и рисуем в Bitmap
-					FastBitmap.WriteBlock(bmpData, x, y, Y0, Y1, Y2, Y3, Cb, Cr);
-				}
+				// собираем макроблок 16x16, переводим YCbCr->RGB и рисуем в Bitmap
+				FastBitmap.WriteBlock(bmpData, x, y, Y0, Y1, Y2, Y3, Cb, Cr);
 			}
+		});
 
-			result.UnlockBits(bmpData);
-		}
+		result.UnlockBits(bmpData);
 
 		return result;
 	}
 
-	private void DecodeBlock(Stream stream, byte[] buffer, short[] coeffsTemp, float[] outputPixels, bool isChroma)
+	private void DecodeBlock(float[] temp, byte[] decodedBytes, byte[] buffer, short[] outputPixels, int offset, bool isChroma = false)
 	{
 		// чтение 64 байт из потока
-		stream.Read(buffer, 0, 64);
+		// stream.Read(buffer, offset, 64);
 		// распутываем зигзаг и умножаем на матрицу квантования
 		// передаем флаг isChroma в метод квантования
-		Quantizer.DequantizeAndZigZagUnscan(buffer, coeffsTemp, isChroma);
+		// Quantizer.DequantizeAndZigZagUnscan(buffer, coeffsTemp, isChroma);
 		// выполняем обратное дискретное косинусное преобразование
-		DCT1D.IDCT(coeffsTemp, outputPixels);
+		Array.Fill(buffer, (byte)0);
+		if (offset + 64 >= decodedBytes.Length)
+			Array.Copy(decodedBytes, offset, buffer, 0, decodedBytes.Length - offset);
+		else
+			Array.Copy(decodedBytes, offset, buffer, 0, 64);
+		DCT1D.IDCT(temp, buffer, outputPixels, isChroma: isChroma);
 	}
 }

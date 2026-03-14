@@ -4,7 +4,7 @@ namespace JPEG.Processor;
 
 public static class Quantizer
 {
-    private static readonly byte[] ZigZagMap = new byte[64]
+    public static readonly byte[] ZigZagMap = new byte[64]
     {
         0,  1,  8, 16,  9,  2,  3, 10,
         17, 24, 32, 25, 18, 11,  4,  5,
@@ -17,7 +17,7 @@ public static class Quantizer
     };
 
     // стандартные матрицы квантования JPEG
-    private static readonly byte[] LumaQuantMatrix = new byte[64]
+    public static readonly byte[] LumaQuantMatrix = new byte[64]
     {
         16, 11, 10, 16,  24,  40,  51,  61,
         12, 12, 14, 19,  26,  58,  60,  55,
@@ -29,7 +29,7 @@ public static class Quantizer
         72, 92, 95, 98, 112, 100, 103,  99
     };
 
-    private static readonly byte[] ChromaQuantMatrix = new byte[64]
+    public static readonly byte[] ChromaQuantMatrix = new byte[64]
     {
         17, 18, 24, 47, 99, 99, 99, 99,
         18, 21, 26, 66, 99, 99, 99, 99,
@@ -40,10 +40,11 @@ public static class Quantizer
         99, 99, 99, 99, 99, 99, 99, 99,
         99, 99, 99, 99, 99, 99, 99, 99
     };
-    
-    private static readonly float[] InvLumaQ = new float[64];
-    private static readonly float[] InvChromaQ = new float[64];
-    
+
+    public static readonly float[] InvLumaQ = new float[64];
+    public static readonly float[] InvChromaQ = new float[64];
+
+
     static Quantizer()
     {
         // в математике деление (x / Q) работает долго. 
@@ -67,9 +68,9 @@ public static class Quantizer
             int flatIndex = ZigZagMap[i];
 
             // берем коэффициент DCT и умножаем на обратное квантование (вместо деления)
-            float coeff = coeffs[flatIndex] * invQ[flatIndex];
+            byte coeff = (byte)(coeffs[i] * invQ[i]);
 
-            result[i] = (byte)coeff; 
+            result[i] = coeff; 
         }
 
         return result;
@@ -89,7 +90,7 @@ public static class Quantizer
             // нужно привести их к знаковому типу sbyte,
             // иначе деквантование сломает цвета (сделает из -1 огромное число +255).
             // деквантование: умножаем на оригинальную матрицу Q
-            outputDct[flatIndex] = (short)((sbyte)inputZigZag[i] * qMatrix[flatIndex]);
+            outputDct[i] = (short)((sbyte)inputZigZag[i] * qMatrix[i]);
         }
     }
 }
