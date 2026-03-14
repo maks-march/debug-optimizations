@@ -11,7 +11,7 @@ public class CompressedImage
 
 	public int Quality { get; set; }
 		
-	public Dictionary<BitsWithLength, byte> DecodeTable { get; set; }
+	public Dictionary<int, byte> DecodeTable { get; set; }
 
 	public long BitsCount { get; set; }
 	public byte[] CompressedBytes { get; set; }
@@ -36,11 +36,17 @@ public class CompressedImage
 
 			foreach(var kvp in DecodeTable)
 			{
-				var bits = kvp.Key.Bits;
+				int i = kvp.Key;
+				int bitsCount = 0;
+				while (i != 1)
+				{
+					i >>= 1;
+					bitsCount++;
+				}
+				int bits = kvp.Key & ((1 << (bitsCount+1)) - 1);
 				buffer = BitConverter.GetBytes(bits);
 				sw.Write(buffer, 0, buffer.Length);
 
-				var bitsCount = kvp.Key.BitsCount;
 				buffer = BitConverter.GetBytes(bitsCount);
 				sw.Write(buffer, 0, buffer.Length);
 
@@ -76,7 +82,7 @@ public class CompressedImage
 
 			sr.Read(buffer, 0, 4);
 			var decodeTableSize = BitConverter.ToInt32(buffer, 0);
-			result.DecodeTable = new Dictionary<BitsWithLength, byte>(decodeTableSize, new BitsWithLength.Comparer());
+			result.DecodeTable = new Dictionary<int, byte>(decodeTableSize);
 
 			for(int i = 0; i < decodeTableSize; i++)
 			{
@@ -87,7 +93,7 @@ public class CompressedImage
 				var bitsCount = BitConverter.ToInt32(buffer, 0);
 
 				var mappedByte = (byte)sr.ReadByte();
-				result.DecodeTable[new BitsWithLength {Bits = bits, BitsCount = bitsCount}] = mappedByte;
+				result.DecodeTable[(1 << bitsCount) | bits] = mappedByte;
 			}
 
 			sr.Read(buffer, 0, 8);

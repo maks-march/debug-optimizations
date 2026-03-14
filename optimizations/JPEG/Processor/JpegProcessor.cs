@@ -85,7 +85,7 @@ public class JpegProcessor : IJpegProcessor
 		bmp.UnlockBits(bmpData);
 		// кодируем байты
 		long bitsCount;
-		Dictionary<BitsWithLength, byte> decodeTable;
+		Dictionary<int, byte> decodeTable;
 		var compressedBytes = HuffmanCodec.Encode(allQuantizedBytes, out decodeTable, out bitsCount);
 
 		return new CompressedImage

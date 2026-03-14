@@ -6,7 +6,7 @@ namespace JPEG;
 
 class HuffmanCodec
 {
-	public static byte[] Encode(IEnumerable<byte> data, out Dictionary<BitsWithLength, byte> decodeTable,
+	public static byte[] Encode(IEnumerable<byte> data, out Dictionary<int, byte> decodeTable,
 		out long bitsCount)
 	{
 		var dataArr = data.ToArray();
@@ -29,17 +29,8 @@ class HuffmanCodec
 		return bitsBuffer.ToArray(out bitsCount);
 	}
 
-	public static byte[] Decode(byte[] encodedData, Dictionary<BitsWithLength, byte> decodeTable, long bitsCount)
+	public static byte[] Decode(byte[] encodedData, Dictionary<int, byte> decodeTable, long bitsCount)
 	{
-		int maxBitsCount = 20; 
-		short[] fastDecodeTable = new short[1 << (maxBitsCount + 1)];
-		Array.Fill(fastDecodeTable, (short)-1);
-
-		foreach (var kvp in decodeTable)
-		{
-			int key = (1 << kvp.Key.BitsCount) | kvp.Key.Bits;
-			fastDecodeTable[key] = kvp.Value;
-		}
 		var result = new List<byte>();
 		int currentBits = 0;
 		int currentBitsCount = 0;
@@ -54,11 +45,9 @@ class HuffmanCodec
 
 				int lookupKey = (1 << currentBitsCount) | currentBits;
 
-				short decodedByte = fastDecodeTable[lookupKey];
-        
-				if (decodedByte != -1)
+				if (decodeTable.TryGetValue(lookupKey, out byte decodedByte))
 				{
-					result.Add((byte)decodedByte);
+					result.Add(decodedByte);
 					currentBits = 0;
 					currentBitsCount = 0;
 				}
@@ -68,16 +57,17 @@ class HuffmanCodec
 		return result.ToArray();
 	}
 
-	private static Dictionary<BitsWithLength, byte> CreateDecodeTable(BitsWithLength[] encodeTable)
+	private static Dictionary<int, byte> CreateDecodeTable(BitsWithLength[] encodeTable)
 	{
-		var result = new Dictionary<BitsWithLength, byte>(new BitsWithLength.Comparer());
+		var result = new Dictionary<int, byte>();
 		for (int b = 0; b < encodeTable.Length; b++)
 		{
 			var bitsWithLength = encodeTable[b];
 			if (bitsWithLength == null)
 				continue;
 
-			result[bitsWithLength] = (byte)b;
+			int key = (1 << bitsWithLength.BitsCount) | bitsWithLength.Bits;
+			result[key] = (byte)b;
 		}
 
 		return result;
