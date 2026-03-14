@@ -39,18 +39,20 @@ public class JpegProcessor : IJpegProcessor
 		var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
 		BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 		
-		// нужны для параллельного обхода по строкам
+		// количества обрабатываемых блоков нужны для параллельного обхода по строкам
 		int rowsCount = height / DCTSize;
 		int colsCount = width / DCTSize;
+		// в этот массив запишем результаты параллельных вычислений
 		List<byte>[] rowResults = new List<byte>[rowsCount];
 		
 		Parallel.For(0, rowsCount, rowIndex =>
 		{
 			int y = rowIndex * DCTSize;
-			// временный массив для хранения строк
-			var temp = new float[64]; 
 			// хранит результат выполнения DCT
 			byte[] dctOutput = new byte[64];
+			// временный массив для хранения промежуточного результата DCT
+			// создан здесь для оптимизации памяти
+			var temp = new float[64];
 			// яркости для каждого пикселя блоков 8 на 8,
 			// и усредненные разности цветов для блока пикселей 2 на 2
 			byte[] Y0 = new byte[64], Y1 = new byte[64], Y2 = new byte[64], Y3 = new byte[64];
@@ -97,11 +99,8 @@ public class JpegProcessor : IJpegProcessor
 
 	private void ProcessBlock(float[] temp, byte[] block, byte[] output, List<byte> outputList, bool isChroma = false)
 	{
-		// выполняем дискретное косинусное преобразование
+		// выполняем дискретное косинусное преобразование с квантованием
 		DCT1D.DCT(temp, block, output, isChroma: isChroma);
-		// размещаем байты зигзагом и делим на матрицу квантования
-		// передаем флаг isChroma в метод квантования
-		// var quantized = Quantizer.QuantizeAndZigZagScan(output, isChroma);
 		outputList.AddRange(output);
 	}
 
@@ -117,17 +116,20 @@ public class JpegProcessor : IJpegProcessor
 		var rect = new Rectangle(0, 0, result.Width, result.Height);
 		BitmapData bmpData = result.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
 		
-		// нужны для параллельного обхода по строкам
+		// количества обрабатываемых блоков нужны для параллельного обхода по строкам
 		int rowsCount = height / DCTSize;
 		int colsCount = width / DCTSize;
+		// считываемый блок размером 64 байта
+		// считывается 6 раз для одних и тех же координат
 		short bytesUsedInIteration = 64 * 6;
 		Parallel.For(0, rowsCount, rowIndex =>
 		{
 			int y = rowIndex * DCTSize;
-			// временный массив для хранения строк
-			var temp = new float[64]; 
 			// буфер для чтения из потока
 			byte[] buffer = new byte[64];
+			// временный массив для хранения промежуточного результата IDCT
+			// создан здесь для оптимизации памяти
+			var temp = new float[64]; 
 		
 			// яркости для каждого пикселя блоков 8 на 8,
 			// и усредненные разности цветов для блока пикселей 2 на 2
@@ -138,7 +140,6 @@ public class JpegProcessor : IJpegProcessor
 			{
 				// количество прочитанных до этой итерации байтов
 				int offset = bytesUsedInIteration * (rowIndex * colsCount + x / DCTSize);
-				// есть вероятность что байты вышли за структуру 16 на 16
 				// читаем и декодируем блоки яркости Y
 				DecodeBlock(temp, decodedBytes, buffer, Y0, offset);
 				DecodeBlock(temp, decodedBytes, buffer, Y1, offset + 64);
@@ -149,7 +150,7 @@ public class JpegProcessor : IJpegProcessor
 				DecodeBlock(temp, decodedBytes, buffer, Cb, offset + 256);
 				DecodeBlock(temp, decodedBytes, buffer, Cr, offset + 320);
 
-				// собираем макроблок 16x16, переводим YCbCr->RGB и рисуем в Bitmap
+				// собираем блок 16x16, переводим YCbCr->RGB и рисуем в Bitmap
 				FastBitmap.WriteBlock(bmpData, x, y, Y0, Y1, Y2, Y3, Cb, Cr);
 			}
 		});
@@ -161,17 +162,14 @@ public class JpegProcessor : IJpegProcessor
 
 	private void DecodeBlock(float[] temp, byte[] decodedBytes, byte[] buffer, short[] outputPixels, int offset, bool isChroma = false)
 	{
-		// чтение 64 байт из потока
-		// stream.Read(buffer, offset, 64);
-		// распутываем зигзаг и умножаем на матрицу квантования
-		// передаем флаг isChroma в метод квантования
-		// Quantizer.DequantizeAndZigZagUnscan(buffer, coeffsTemp, isChroma);
-		// выполняем обратное дискретное косинусное преобразование
 		Array.Fill(buffer, (byte)0);
+		// чтение 64 байт из потока
+		// есть вероятность что offset выйдет за структуру
 		if (offset + 64 >= decodedBytes.Length)
 			Array.Copy(decodedBytes, offset, buffer, 0, decodedBytes.Length - offset);
 		else
 			Array.Copy(decodedBytes, offset, buffer, 0, 64);
+		// выполняем обратное дискретное косинусное преобразование
 		DCT1D.IDCT(temp, buffer, outputPixels, isChroma: isChroma);
 	}
 }

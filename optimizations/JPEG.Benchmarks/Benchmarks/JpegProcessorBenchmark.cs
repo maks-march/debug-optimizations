@@ -8,7 +8,7 @@ namespace JPEG.Benchmarks.Benchmarks;
 public class JpegProcessorBenchmark
 {
 	private IJpegProcessor jpegProcessor;
-	private static readonly string imagePath = @"earth.bmp";
+	private static readonly string imagePath = @"sample.bmp";
 	private static readonly string compressedImagePath = imagePath + ".compressed." + JpegProcessor.CompressionQuality;
 	private static readonly string uncompressedImagePath =
 		imagePath + ".uncompressed." + JpegProcessor.CompressionQuality + ".bmp";

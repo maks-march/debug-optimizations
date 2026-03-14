@@ -10,6 +10,7 @@ class BitsBuffer
 
     public void Add(int bits, int length)
     {
+        // добавил аккамуляторное число
         _accumulator = (_accumulator << length) | bits;
         _bitCount += length;
 

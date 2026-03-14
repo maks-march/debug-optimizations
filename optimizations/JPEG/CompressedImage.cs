@@ -36,6 +36,7 @@ public class CompressedImage
 
 			foreach(var kvp in DecodeTable)
 			{
+				// декодирование ключа в словаре
 				int i = kvp.Key;
 				int bitsCount = 0;
 				while (i != 1)
@@ -93,6 +94,7 @@ public class CompressedImage
 				var bitsCount = BitConverter.ToInt32(buffer, 0);
 
 				var mappedByte = (byte)sr.ReadByte();
+				// кодирование ключа в словаре
 				result.DecodeTable[(1 << bitsCount) | bits] = mappedByte;
 			}
 

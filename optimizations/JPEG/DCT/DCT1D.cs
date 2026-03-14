@@ -9,6 +9,7 @@ public class DCT1D
     // единая таблица предрасчетов для DCT и IDCT.
     // размер 64, индекс считается как: (Строка * Ширина + Колонка)
     private static readonly float[] PrecalcTable = new float[N * N];
+    
     // стандартные матрицы квантования JPEG
     public static readonly byte[] LumaQuantMatrix = new byte[64]
     {
@@ -57,6 +58,8 @@ public class DCT1D
                 PrecalcTable[freq * N + space] = (float)(cosVal * flag * sqrtBeta);
             }
         }
+        // сразу поделим все значения в матрицах квантования
+        // так как умножение быстрее деления 
         for (int i = 0; i < 64; i++)
         {
             InvLumaQ[i] = 1.0f / LumaQuantMatrix[i];
@@ -65,7 +68,7 @@ public class DCT1D
     }
     
     // вместо возвращения нового массива, пишем результат в переданный массив `coeffs`.
-    // input и coeffs должны иметь размер 64!
+    // input и coeffs должны иметь размер 64
     public static void DCT(float[] temp, byte[] input, byte[] output, short shift = -128, bool isChroma = false)
     {
         float[] invQ = isChroma ? InvChromaQ : InvLumaQ;
@@ -100,7 +103,7 @@ public class DCT1D
                     // temp[y, u] и PrecalcTable[v, y]
                     sum += temp[y * N + u] * PrecalcTable[vOffset + y];
                 }
-                // записываем результат: coeffs[v, u]
+                // записываем результат, но сначала квантуем его и приводим к байтам
                 output[vOffset + u] = (byte)(sum * invQ[vOffset + u]);
             }
         }
@@ -118,7 +121,8 @@ public class DCT1D
                 float sum = 0f;
                 for (int v = 0; v < N; v++)
                 {
-                    // coeffs[v, u] и PrecalcTable[v, y]
+                    // input[v, u] и PrecalcTable[v, y]
+                    // input перед подсчетом нужно разквантовать
                     sum += (short)((sbyte)input[v * N + u] * qMatrix[v * N + u]) * PrecalcTable[v * N + y];
                 }
                 // temp[y, u]
