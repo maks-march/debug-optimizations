@@ -16,7 +16,7 @@ public static class Quantizer
         53, 60, 61, 54, 47, 55, 62, 63
     };
 
-    // 2. Стандартные матрицы квантования JPEG (Базовое качество 50%)
+    // стандартные матрицы квантования JPEG
     private static readonly byte[] LumaQuantMatrix = new byte[64]
     {
         16, 11, 10, 16,  24,  40,  51,  61,
@@ -46,9 +46,8 @@ public static class Quantizer
     
     static Quantizer()
     {
-        // В математике деление (x / Q) работает долго. 
-        // Мы предрассчитываем (1.0 / Q), чтобы в цикле делать быстрое умножение (x * InvQ).
-        // ЗАМЕТКА: Здесь также можно применять фактор качества (Quality Factor).
+        // в математике деление (x / Q) работает долго. 
+        // предрассчитываем (1.0 / Q), чтобы в цикле делать быстрое умножение (x * InvQ).
         for (int i = 0; i < 64; i++)
         {
             InvLumaQ[i] = 1.0f / LumaQuantMatrix[i];
@@ -64,42 +63,33 @@ public static class Quantizer
 
         for (int i = 0; i < 64; i++)
         {
-            // Берем индекс пикселя по Зигзагу
+            // берем индекс пикселя по Зигзагу
             int flatIndex = ZigZagMap[i];
 
-            // Берем коэффициент DCT и умножаем на обратное квантование (вместо деления)
+            // берем коэффициент DCT и умножаем на обратное квантование (вместо деления)
             float coeff = coeffs[flatIndex] * invQ[flatIndex];
 
-            // Округляем до ближайшего целого (используем быстрое приведение типов)
-            // Примечание: Math.Round работает медленнее, поэтому для скорости делают так:
-            // int quantizedVal = (int)(coeff + (coeff > 0 ? 0.5f : -0.5f));
-
-            // Приводим к байту (ВАЖНО: убедись, что твой Хаффман ожидает byte, 
-            // так как коэффициенты могут быть отрицательными! Обычно используют short).
             result[i] = (byte)coeff; 
         }
 
         return result;
     }
 
-    public static void DequantizeAndZigZagUnscan(byte[] inputZigZag, int[] outputDct, bool isChroma = false)
+    public static void DequantizeAndZigZagUnscan(byte[] inputZigZag, short[] outputDct, bool isChroma = false)
     {
         byte[] qMatrix = isChroma ? ChromaQuantMatrix : LumaQuantMatrix;
 
         for (int i = 0; i < 64; i++)
         {
-            // 1. Узнаем, куда (в какой плоский индекс y*8+x) нужно положить значение
+            // узнаем, куда (в какой плоский индекс y*8+x) нужно положить значение
             int flatIndex = ZigZagMap[i];
 
-            // 2. Читаем квантованное значение. 
-            // ВАЖНО: Коэффициенты DCT могут быть отрицательными! 
-            // Если твой Хаффман выдает byte[], то отрицательные числа там хранятся 
-            // в дополнительном коде (например, -1 это 255). 
-            // Нам ОБЯЗАТЕЛЬНО нужно привести это к signed (знаковому) типу sbyte, 
+            // читаем квантованное значение. 
+            // коэффициенты DCT могут быть отрицательными
+            // нужно привести их к знаковому типу sbyte,
             // иначе деквантование сломает цвета (сделает из -1 огромное число +255).
-            // 3. Деквантование: Умножаем на оригинальную матрицу Q 
-            // (так как при сжатии мы делили, тут мы умножаем обратно)
-            outputDct[flatIndex] = (sbyte)inputZigZag[i] * qMatrix[flatIndex];
+            // деквантование: умножаем на оригинальную матрицу Q
+            outputDct[flatIndex] = (short)((sbyte)inputZigZag[i] * qMatrix[flatIndex]);
         }
     }
 }

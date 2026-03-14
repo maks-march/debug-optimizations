@@ -6,14 +6,14 @@ public class DCT1D
 {
     private const int N = 8;
     private float[,] _temp = new float[N, N];
-    // Единая таблица предрасчетов для DCT и IDCT.
-    // Размер 64. Индекс считается как: (frequency * 8 + space)
+    // единая таблица предрасчетов для DCT и IDCT.
+    // размер 64, индекс считается как: (Строка * Ширина + Колонка)
     private static readonly float[] PrecalcTable = new float[N * N];
 
     static DCT1D()
     {
         double beta = 1d / N + 1d / N; // 0.25
-        double sqrtBeta = Math.Sqrt(beta); // 0.5 (мы делим бету пополам для сепарабельности)
+        double sqrtBeta = Math.Sqrt(beta); // 0.5
         double alpha = 1 / Math.Sqrt(2);
 
         for (int freq = 0; freq < N; freq++)
@@ -24,25 +24,24 @@ public class DCT1D
             {
                 double cosVal = Math.Cos((2d * space + 1d) * freq * Math.PI / (2 * N));
                 
-                // Предрассчитываем косинус вместе со всеми флагами и бетой!
-                // Для 1D массива используем формулу: (Строка * Ширину + Колонка)
+                // предрассчитываем косинус вместе со всеми флагами и бетой
+                // для 1D массива используем формулу: (Строка * Ширина + Колонка)
                 PrecalcTable[freq * N + space] = (float)(cosVal * flag * sqrtBeta);
             }
         }
     }
     
-    // Вместо возвращения нового массива, мы пишем результат в переданный массив `coeffs`.
+    // вместо возвращения нового массива, пишем результат в переданный массив `coeffs`.
     // input и coeffs должны иметь размер 64!
     public static void DCT(byte[] input, float[] coeffs, short shift = -128)
     {
-        // Временный массив для хранения строк. 
-        // Если используешь C# 7.2+, замени на: Span<float> temp = stackalloc float[64];
+        // временный массив для хранения строк
         var temp = new float[64]; 
 
-        // 1. Проход по СТРОКАМ (Spatial X -> Frequency U)
+        // проход по строкам (Spatial X -> Frequency U)
         for (int y = 0; y < N; y++)
         {
-            int yOffset = y * N; // Оптимизация: считаем смещение строки 1 раз
+            int yOffset = y * N;
             for (int u = 0; u < N; u++)
             {
                 float sum = 0f;
@@ -52,12 +51,12 @@ public class DCT1D
                     // input[y, x] и PrecalcTable[u, x]
                     sum += (input[yOffset + x] + shift) * PrecalcTable[uOffset + x];
                 }
-                // Записываем результат: temp[y, u]
+                // записываем результат: temp[y, u]
                 temp[yOffset + u] = sum;
             }
         }
 
-        // 2. Проход по СТОЛБЦАМ (Spatial Y -> Frequency V)
+        // проход по столбцам (Spatial Y -> Frequency V)
         for (int u = 0; u < N; u++)
         {
             for (int v = 0; v < N; v++)
@@ -69,17 +68,17 @@ public class DCT1D
                     // temp[y, u] и PrecalcTable[v, y]
                     sum += temp[y * N + u] * PrecalcTable[vOffset + y];
                 }
-                // Записываем результат: coeffs[v, u] (где v - вертикальная частота, u - горизонтальная)
+                // записываем результат: coeffs[v, u]
                 coeffs[vOffset + u] = sum;
             }
         }
     }
 
-    public static void IDCT(int[] coeffs, float[] output, short shift = 128)
+    public static void IDCT(short[] coeffs, float[] output, short shift = 128)
     {
-        var temp = new float[64]; // Аналогично, лучше использовать stackalloc float[64] если доступно
+        var temp = new float[64];
 
-        // 1. Обратный проход по СТОЛБЦАМ (Frequency V -> Spatial Y)
+        // обратный проход по столбцам (Frequency V -> Spatial Y)
         for (int u = 0; u < N; u++)
         {
             for (int y = 0; y < N; y++)
@@ -95,7 +94,7 @@ public class DCT1D
             }
         }
 
-        // 2. Обратный проход по СТРОКАМ (Frequency U -> Spatial X)
+        // обратный проход по строкам (Frequency U -> Spatial X)
         for (int y = 0; y < N; y++)
         {
             int yOffset = y * N;
